@@ -474,7 +474,7 @@
 <body>
     <div class="header">
         <h1>🎖️ Military Ribbon Chart - Career Planning Tool</h1>
-        <p>Visualize, plan, and mentor military career progression</p>
+        <p>Visualize, plan, and mentor military career progression | <a href="https://github.com/yourusername/military-ribbon-chart" style="color: rgba(255,255,255,0.9); text-decoration: underline;" target="_blank">View on GitHub</a></p>
     </div>
 
     <div class="container">
@@ -620,15 +620,24 @@
                     <input type="file" id="bioFile" accept=".pdf" style="display: none;" onchange="handleFileUpload(event)">
                     <div>📄</div>
                     <div style="margin-top: 1rem; font-weight: 500;">Click to upload or drag and drop</div>
-                    <div style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--color-text-secondary);">PDF files only</div>
+                    <div style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--color-text-secondary);">PDF files only (e.g., official military biography)</div>
                 </div>
                 <div id="uploadStatus"></div>
+                <div id="parsingProgress" style="display: none; margin-top: 1rem;">
+                    <div style="font-size: 0.85rem; color: var(--color-text-secondary); margin-bottom: 0.5rem;">Parsing PDF...</div>
+                    <div style="width: 100%; height: 6px; background: var(--color-border); border-radius: 3px; overflow: hidden;">
+                        <div id="progressBar" style="width: 0%; height: 100%; background: var(--color-primary); transition: width 0.3s;"></div>
+                    </div>
+                </div>
             </div>
 
             <div class="card" id="extractedData" style="display: none;">
                 <h2>Extracted Career Information</h2>
                 <div id="extractedInfo"></div>
-                <button class="btn btn-primary" onclick="createChartFromBio()">Create Ribbon Chart</button>
+                <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                    <button class="btn btn-primary" onclick="createChartFromBio()">✓ Use This Data</button>
+                    <button class="btn btn-secondary" onclick="resetBioUpload()">⟲ Upload Different PDF</button>
+                </div>
             </div>
         </div>
 
@@ -698,7 +707,11 @@
         </div>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
+        // Set up PDF.js worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
         // Application state
         let currentChart = {
             officer: {},
@@ -706,6 +719,7 @@
         };
 
         let savedCharts = [];
+        let lastParsedData = null;
 
         // Sample data for demonstration
         const sampleCharts = [
@@ -955,50 +969,233 @@
             document.querySelector('.tab[onclick*="create"]').click();
         }
 
-        // File upload handling
-        function handleFileUpload(event) {
+        // File upload handling with PDF.js
+        async function handleFileUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
 
             const statusDiv = document.getElementById('uploadStatus');
-            statusDiv.innerHTML = '<div class="alert alert-info">📄 Processing biography PDF...</div>';
+            const progressDiv = document.getElementById('parsingProgress');
+            const progressBar = document.getElementById('progressBar');
+            const extractedDiv = document.getElementById('extractedData');
 
-            // Simulate PDF processing (in production, would use PDF.js or server-side processing)
-            setTimeout(() => {
-                const extractedDiv = document.getElementById('extractedData');
-                const infoDiv = document.getElementById('extractedInfo');
+            statusDiv.innerHTML = '';
+            progressDiv.style.display = 'block';
+            progressBar.style.width = '0%';
+
+            try {
+                // Read file as array buffer
+                const arrayBuffer = await file.arrayBuffer();
+                progressBar.style.width = '25%';
+
+                // Load PDF document
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                progressBar.style.width = '50%';
+
+                // Extract text from all pages
+                let fullText = '';
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    fullText += textContent.items.map(item => item.str).join(' ') + '\n';
+                }
+                progressBar.style.width = '75%';
+
+                // Parse the extracted text
+                const parsedData = parseMilitaryBiography(fullText);
+                lastParsedData = parsedData;
+                progressBar.style.width = '100%';
+
+                // Display extracted data
+                displayExtractedData(parsedData, file.name);
+                extractedDiv.style.display = 'block';
+
+                setTimeout(() => {
+                    progressDiv.style.display = 'none';
+                }, 500);
+
+            } catch (error) {
+                console.error('PDF parsing error:', error);
+                statusDiv.innerHTML = `<div class="alert alert-error">❌ Error parsing PDF: ${error.message}. Try uploading a different file.</div>`;
+                progressDiv.style.display = 'none';
+            }
+        }
+
+        // Parse military biography text
+        function parseMilitaryBiography(text) {
+            const data = {
+                officer: {
+                    rank: '',
+                    name: '',
+                    afsc: '',
+                    yearGroup: '',
+                    dutyTitle: '',
+                    currentUnit: ''
+                },
+                assignments: []
+            };
+
+            // Extract rank and name (usually at the beginning)
+            const rankMatch = text.match(/(Second Lieutenant|First Lieutenant|Captain|Major|Lieutenant Colonel|Colonel|Brigadier General|Major General)\s+([A-Z][a-z]+\s+[A-Z]\.?\s+[A-Z][a-z]+)/);
+            if (rankMatch) {
+                data.officer.rank = rankMatch[1];
+                data.officer.name = rankMatch[2].trim();
+            }
+
+            // Extract year group (graduation year)
+            const yearMatch = text.match(/(?:class of|graduated|USAF Academy|graduate of.*?)\s+(\d{4})/i);
+            if (yearMatch) {
+                data.officer.yearGroup = yearMatch[1];
+            }
+
+            // Extract AFSC/career field
+            const afscMatch = text.match(/(?:AFSC|career field|13S|11M|12M|14N|17D)\s*:?\s*([0-9A-Z\/]+)/i);
+            if (afscMatch) {
+                data.officer.afsc = afscMatch[1].trim();
+            }
+
+            // Extract current duty title and unit (usually near the beginning)
+            const dutyMatch = text.match(/(?:is the|serves as)\s+([^,]+),?\s+([^,\n]+)/);
+            if (dutyMatch) {
+                data.officer.dutyTitle = dutyMatch[1].trim();
+                data.officer.currentUnit = dutyMatch[2].trim();
+            }
+
+            // Extract assignments - look for date patterns followed by positions
+            const assignmentPattern = /([A-Za-z\s]+?)(?:\(([A-Za-z\s\/,]+?)\))?\s*,?\s*([^,]+(?:Squadron|Group|Flight|Command|Staff|Center|Academy|College|Headquarters|Base|AFB|SFB)(?:[^,]*)),?\s*([^,]*?)(?:,\s*(.*?),)?\s+(?:(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})|(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4}))\s*(?:–|-|to)\s*(?:(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})|(?:Present|Current)|(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4}))/gi;
+            
+            let match;
+            while ((match = assignmentPattern.exec(text)) !== null) {
+                const title = match[1].trim();
+                const unit = match[3].trim();
+                const location = match[4].trim();
                 
-                // Show sample extracted data
-                infoDiv.innerHTML = `
-                    <div class="alert alert-success">✅ Successfully extracted career information from ${file.name}</div>
+                // Determine assignment type
+                let type = 'operational';
+                if (title.toLowerCase().includes('commander') || title.toLowerCase().includes('command')) {
+                    type = 'command';
+                } else if (title.toLowerCase().includes('chief') || title.toLowerCase().includes('staff')) {
+                    type = 'staff';
+                } else if (title.toLowerCase().includes('school') || title.toLowerCase().includes('college') || title.toLowerCase().includes('academy')) {
+                    type = 'school';
+                } else if (title.toLowerCase().includes('joint') || title.toLowerCase().includes('pentagon')) {
+                    type = 'joint';
+                }
+
+                // Parse dates
+                let startMonth = match[6] || getMonthNumber(match[10]);
+                let startYear = match[7] || match[11];
+                let endMonth = match[12] || getMonthNumber(match[16]);
+                let endYear = match[13] || match[17];
+
+                if (startYear && startMonth) {
+                    const startDate = `${startYear}-${String(startMonth).padStart(2, '0')}`;
+                    const endDate = endYear && endMonth ? `${endYear}-${String(endMonth).padStart(2, '0')}` : '';
+
+                    data.assignments.push({
+                        type: type,
+                        title: title,
+                        unit: unit,
+                        location: location,
+                        start: startDate,
+                        end: endDate,
+                        notes: ''
+                    });
+                }
+            }
+
+            // Sort by date
+            data.assignments.sort((a, b) => a.start.localeCompare(b.start));
+
+            return data;
+        }
+
+        // Helper function to convert month name to number
+        function getMonthNumber(monthName) {
+            const months = {
+                'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04',
+                'May': '05', 'Jun': '06', 'Jul': '07', 'Aug': '08',
+                'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
+            };
+            return months[monthName] || '01';
+        }
+
+        // Display extracted data for review
+        function displayExtractedData(data, filename) {
+            const infoDiv = document.getElementById('extractedInfo');
+            
+            let html = `
+                <div class="alert alert-success">✅ Successfully parsed ${filename}</div>
+                <div class="officer-info">
+                    <div class="info-item">
+                        <div class="info-label">Rank</div>
+                        <div class="info-value">${data.officer.rank || 'Not detected'}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Name</div>
+                        <div class="info-value">${data.officer.name || 'Not detected'}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Year Group</div>
+                        <div class="info-value">${data.officer.yearGroup || 'Not detected'}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">AFSC</div>
+                        <div class="info-value">${data.officer.afsc || 'Not detected'}</div>
+                    </div>
+                </div>
+                <div style="margin: 1.5rem 0;">
+                    <h3 style="font-size: 1.1rem; margin-bottom: 1rem;">Detected Assignments (${data.assignments.length})</h3>
+            `;
+
+            data.assignments.forEach((assignment, index) => {
+                html += `
                     <div class="timeline-entry">
-                        <div class="timeline-date">Detected Officer: Brig Gen Matthew S. Cantore</div>
-                        <div>Year Group: 1998</div>
-                        <div>AFSC: 13S (Space Operations)</div>
-                        <div>11 assignments identified</div>
+                        <div class="timeline-date">${assignment.start}${assignment.end ? ' - ' + assignment.end : ' - Present'}</div>
+                        <div style="font-weight: 600;">${assignment.title}</div>
+                        <div style="color: var(--color-text-secondary); font-size: 0.9rem;">${assignment.unit}${assignment.location ? ', ' + assignment.location : ''}</div>
+                        <span class="assignment-type-${assignment.type}" style="display: inline-block; margin-top: 0.5rem; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; text-transform: uppercase;">${assignment.type}</span>
                     </div>
                 `;
-                
-                extractedDiv.style.display = 'block';
-                statusDiv.innerHTML = '';
-            }, 2000);
+            });
+
+            html += '</div>';
+            infoDiv.innerHTML = html;
         }
 
         // Create chart from biography
         function createChartFromBio() {
-            // Load sample data
-            currentChart = JSON.parse(JSON.stringify(sampleCharts[0]));
+            if (!lastParsedData) {
+                alert('Please upload a PDF first');
+                return;
+            }
+
+            currentChart = JSON.parse(JSON.stringify(lastParsedData));
             
             // Populate form
             document.getElementById('rank').value = currentChart.officer.rank;
             document.getElementById('officerName').value = currentChart.officer.name;
+            document.getElementById('dutyTitle').value = currentChart.officer.dutyTitle || '';
+            document.getElementById('currentUnit').value = currentChart.officer.currentUnit || '';
             document.getElementById('afsc').value = currentChart.officer.afsc;
             document.getElementById('yearGroup').value = currentChart.officer.yearGroup;
 
             displayTimeline();
             displayRibbonChart();
             
-            alert('Ribbon chart created from biography! Switch to "Create Chart" tab to view and edit.');
+            // Switch to create tab
+            const createTab = document.querySelector('.tab[onclick*="create"]');
+            if (createTab) createTab.click();
+            
+            alert('✅ Ribbon chart created from biography! Review and edit assignments as needed.');
+        }
+
+        // Reset bio upload
+        function resetBioUpload() {
+            document.getElementById('bioFile').value = '';
+            document.getElementById('uploadStatus').innerHTML = '';
+            document.getElementById('extractedData').style.display = 'none';
+            lastParsedData = null;
         }
 
         // Drag and drop handling
