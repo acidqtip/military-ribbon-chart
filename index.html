@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Military Ribbon Chart - Career Planning Tool</title>
+    <!-- PDF.js Library for client-side PDF text extraction -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <style>
         :root {
             --color-primary: #1e40af;
@@ -420,6 +422,12 @@
             border: 1px solid #93c5fd;
         }
 
+        .alert-warning {
+            background: #fef08a;
+            color: #854d0e;
+            border: 1px solid #facc15;
+        }
+
         .button-group {
             display: flex;
             gap: 0.5rem;
@@ -456,15 +464,41 @@
             color: var(--color-text-secondary);
         }
 
+        .parse-quality-info {
+            background: #f0fdf4;
+            border: 1px solid #86efac;
+            border-radius: 6px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .parse-quality-high {
+            background: #dcfce7;
+            border-color: #86efac;
+            color: #166534;
+        }
+
+        .parse-quality-medium {
+            background: #fef08a;
+            border-color: #facc15;
+            color: #854d0e;
+        }
+
+        .parse-quality-low {
+            background: #fee2e2;
+            border-color: #fecaca;
+            color: #991b1b;
+        }
+
         @media (max-width: 768px) {
             .container {
                 padding: 1rem;
             }
-            
+
             .tabs {
                 overflow-x: auto;
             }
-            
+
             .officer-info {
                 grid-template-columns: 1fr;
             }
@@ -474,7 +508,7 @@
 <body>
     <div class="header">
         <h1>🎖️ Military Ribbon Chart - Career Planning Tool</h1>
-        <p>Visualize, plan, and mentor military career progression | <a href="https://github.com/yourusername/military-ribbon-chart" style="color: rgba(255,255,255,0.9); text-decoration: underline;" target="_blank">View on GitHub</a></p>
+        <p>Visualize, plan, and mentor military career progression | <a href="https://github.com/acidqtip/military-ribbon-chart" style="color: rgba(255,255,255,0.9); text-decoration: underline;" target="_blank">View on GitHub</a></p>
     </div>
 
     <div class="container">
@@ -502,6 +536,8 @@
                             <option value="Col">Colonel</option>
                             <option value="Brig Gen">Brigadier General</option>
                             <option value="Maj Gen">Major General</option>
+                            <option value="Lt Gen">Lieutenant General</option>
+                            <option value="Gen">General</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -614,29 +650,23 @@
             <div class="card">
                 <h2>Upload Military Biography PDF</h2>
                 <p style="color: var(--color-text-secondary); margin-bottom: 1.5rem;">
-                    Upload an official military biography PDF to automatically extract career information and generate a ribbon chart.
+                    Upload an official military biography PDF to automatically extract career information and generate a ribbon chart. Supports Air Force, Space Force, and other service biographies.
                 </p>
                 <div class="file-upload" id="fileUpload" onclick="document.getElementById('bioFile').click()">
                     <input type="file" id="bioFile" accept=".pdf" style="display: none;" onchange="handleFileUpload(event)">
-                    <div>📄</div>
+                    <div style="font-size: 2rem;">📄</div>
                     <div style="margin-top: 1rem; font-weight: 500;">Click to upload or drag and drop</div>
-                    <div style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--color-text-secondary);">PDF files only (e.g., official military biography)</div>
+                    <div style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--color-text-secondary);">PDF files only (up to 10MB)</div>
                 </div>
-                <div id="uploadStatus"></div>
-                <div id="parsingProgress" style="display: none; margin-top: 1rem;">
-                    <div style="font-size: 0.85rem; color: var(--color-text-secondary); margin-bottom: 0.5rem;">Parsing PDF...</div>
-                    <div style="width: 100%; height: 6px; background: var(--color-border); border-radius: 3px; overflow: hidden;">
-                        <div id="progressBar" style="width: 0%; height: 100%; background: var(--color-primary); transition: width 0.3s;"></div>
-                    </div>
-                </div>
+                <div id="uploadStatus" style="margin-top: 1rem;"></div>
             </div>
 
             <div class="card" id="extractedData" style="display: none;">
                 <h2>Extracted Career Information</h2>
                 <div id="extractedInfo"></div>
-                <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                <div class="button-group" style="margin-top: 1.5rem;">
                     <button class="btn btn-primary" onclick="createChartFromBio()">✓ Use This Data</button>
-                    <button class="btn btn-secondary" onclick="resetBioUpload()">⟲ Upload Different PDF</button>
+                    <button class="btn btn-secondary" onclick="resetUpload()">↻ Upload Different PDF</button>
                 </div>
             </div>
         </div>
@@ -659,7 +689,7 @@
                 <p style="color: var(--color-text-secondary); margin-bottom: 1.5rem;">
                     Find senior officers who have pursued similar career paths to guide your progression
                 </p>
-                
+
                 <div class="form-group">
                     <label>Your Career Aspirations</label>
                     <textarea id="careerGoals" rows="3" placeholder="Describe your career goals and desired experiences (e.g., 'I want to command a squadron, serve on the Joint Staff, and attend War College')"></textarea>
@@ -707,7 +737,6 @@
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
         // Set up PDF.js worker
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -719,7 +748,7 @@
         };
 
         let savedCharts = [];
-        let lastParsedData = null;
+        let extractedBioData = null;
 
         // Sample data for demonstration
         const sampleCharts = [
@@ -749,11 +778,292 @@
         // Initialize with sample data
         savedCharts = [...sampleCharts];
 
+        // ============================================
+        // ROBUST MILITARY BIOGRAPHY PDF PARSER
+        // ============================================
+        class MilitaryBioParser {
+            constructor(text) {
+                this.text = text;
+                this.lines = text.split('\n').map(line => line.trim()).filter(line => line);
+            }
+
+            // Extract rank from EFFECTIVE DATES OF PROMOTION section
+            extractRank() {
+                const promotionMatch = this.text.match(/EFFECTIVE DATES OF PROMOTION([\s\S]*?)(?:BIOGRAPHY|EDUCATION|$)/i);
+                if (!promotionMatch) return null;
+
+                const promotionText = promotionMatch[1];
+                const ranks = [
+                    'General', 'Lieutenant General', 'Major General', 'Brigadier General',
+                    'Colonel', 'Lieutenant Colonel', 'Major', 'Captain', 'First Lieutenant', 'Second Lieutenant'
+                ];
+
+                // Find the LAST (most recent) rank mentioned
+                let lastRank = null;
+                for (const rank of ranks) {
+                    if (promotionText.includes(rank)) {
+                        lastRank = rank;
+                    }
+                }
+
+                // Cross-check with BIOGRAPHY section header
+                const bioMatch = this.text.match(/BIOGRAPHY[^A-Z]*?(UNITED STATES[^A-Z]+)?([A-Z\s]+?)\s+([A-Z][A-Z]\.?)/i);
+                if (bioMatch && bioMatch[2]) {
+                    const bioRank = bioMatch[2].trim();
+                    if (ranks.some(r => bioRank.includes(r))) {
+                        return bioRank.split(/\s+/).slice(0, 3).join(' ').trim();
+                    }
+                }
+
+                return lastRank;
+            }
+
+            // Extract officer name from BIOGRAPHY header
+            extractName() {
+                // Pattern: Find BIOGRAPHY section and capture the name
+                const bioHeaderMatch = this.text.match(/BIOGRAPHY[\s\n]+(?:UNITED STATES SPACE FORCE[\s\n]+)?[A-Z]+\s+([A-Z][A-Z\s\.\-,]+?)(?:\s+(?:is|was|serves)|$)/i);
+
+                if (bioHeaderMatch && bioHeaderMatch[1]) {
+                    return bioHeaderMatch[1].trim().replace(/,\s*$/g, '');
+                }
+
+                // Fallback: look after rank/general words
+                const fallbackMatch = this.text.match(/(?:GENERAL|COLONEL|MAJOR|CAPTAIN|LIEUTENANT|AIRMAN)\s+([A-Z][A-Z\s\.\-,]+?)\s+(?:is|was|serves|has|was the)/i);
+                if (fallbackMatch && fallbackMatch[1]) {
+                    return fallbackMatch[1].trim();
+                }
+
+                return null;
+            }
+
+            // Extract year group from graduation or commission year
+            extractYearGroup() {
+                // Look in EDUCATION section for first degree
+                const educationMatch = this.text.match(/EDUCATION[\s\S]*?(19\d{2}|20\d{2})\s+(?:Bachelor|Master|Graduate|Diploma|Certificate)/i);
+                if (educationMatch && educationMatch[1]) {
+                    return educationMatch[1];
+                }
+
+                // Look for commission year
+                const commissionMatch = this.text.match(/(?:commissioned|entered the|graduated).*?(19\d{2}|20\d{2})/i);
+                if (commissionMatch && commissionMatch[1]) {
+                    return commissionMatch[1];
+                }
+
+                // Look in promotion section
+                const promotionMatch = this.text.match(/Second Lieutenant.*?(19\d{2}|20\d{2})/);
+                if (promotionMatch && promotionMatch[1]) {
+                    return promotionMatch[1];
+                }
+
+                return null;
+            }
+
+            // Parse assignment entries
+            parseAssignments() {
+                const assignments = [];
+                const assignmentSection = this.text.match(/ASSIGNMENTS([\s\S]*?)(?:SUMMARY OF JOINT|MAJOR AWARDS|OTHER ACHIEVEMENTS|OPERATIONAL CERTIFICATIONS|$)/i);
+
+                if (!assignmentSection) return assignments;
+
+                const assignmentText = assignmentSection[1];
+                const lines = assignmentText.split('\n');
+
+                let currentAssignment = null;
+                let currentIndex = 0;
+
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (!line || line.match(/^---|===/) continue;
+
+                    // Check for numbered assignment entries
+                    const numberMatch = line.match(/^(\d+)\.\s+/);
+
+                    if (numberMatch) {
+                        // Save previous assignment
+                        if (currentAssignment && this.isValidAssignment(currentAssignment)) {
+                            assignments.push(currentAssignment);
+                        }
+
+                        currentIndex = parseInt(numberMatch[1]);
+                        const remainder = line.replace(/^\d+\.\s+/, '').trim();
+                        currentAssignment = this.parseAssignmentLine(remainder, currentIndex);
+                    } else if (currentAssignment && line && !line.match(/^[A-Z]{2,}/)) {
+                        // Continuation of current assignment (additional location or detail)
+                        if (!line.startsWith('http')) { // Ignore URLs
+                            if (line.match(/^(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i)) {
+                                // New sub-assignment within same main assignment
+                                const subAssignment = this.parseAssignmentLine(line, currentIndex);
+                                if (this.isValidAssignment(subAssignment)) {
+                                    assignments.push(subAssignment);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Don't forget last assignment
+                if (currentAssignment && this.isValidAssignment(currentAssignment)) {
+                    assignments.push(currentAssignment);
+                }
+
+                return assignments.slice(0, 50); // Cap at 50
+            }
+
+            // Parse individual assignment line
+            parseAssignmentLine(line, index) {
+                // Handle multiple date formats: "May 1999–May 2000" or "May 1999 to May 2000" or "May 1999–present"
+                const datePattern = /(\w+\s+\d{4})([–\-\s]*(?:to|–|-)\s*)(\w+\s+\d{4}|present|Present)/i;
+                const dateMatch = line.match(datePattern);
+
+                if (!dateMatch) {
+                    return null;
+                }
+
+                const startStr = dateMatch[1];
+                const endStr = dateMatch[3];
+
+                // Extract title and location from remainder
+                const afterDates = line.substring(dateMatch[0].length).trim().replace(/^,\s*/, '');
+
+                // Split on comma to separate title from location
+                const parts = afterDates.split(',');
+                let title = parts[0].trim() || 'Assignment';
+                let location = parts.length > 1 ? parts[1].trim() : '';
+                let unit = this.extractUnit(line, title);
+
+                // Determine type
+                const type = this.classifyAssignment(title, location);
+
+                const parsed = {
+                    type: type,
+                    title: title,
+                    unit: unit,
+                    location: location,
+                    start: this.parseDate(startStr),
+                    end: endStr.toLowerCase().includes('present') ? '' : this.parseDate(endStr),
+                    notes: ''
+                };
+
+                return parsed;
+            }
+
+            // Parse month-year string
+            parseDate(dateStr) {
+                const months = {
+                    'january': '01', 'february': '02', 'march': '03', 'april': '04',
+                    'may': '05', 'june': '06', 'july': '07', 'august': '08',
+                    'september': '09', 'october': '10', 'november': '11', 'december': '12'
+                };
+
+                const match = dateStr.match(/(\w+)\s+(\d{4})/i);
+                if (!match) return null;
+
+                const month = months[match[1].toLowerCase()];
+                const year = match[2];
+
+                return month && year ? `${year}-${month}` : null;
+            }
+
+            // Extract unit/squadron/group name
+            extractUnit(line, title) {
+                const unitMatch = line.match(/([A-Z]\d+|\d+(?:st|nd|rd|th))\s+([A-Za-z\s]+?)(?:Squadron|Group|Wing|Command|Center|Force|Operations)/i);
+                if (unitMatch) {
+                    return `${unitMatch[1]} ${unitMatch[2].trim()}`;
+                }
+
+                // Extract from title if present
+                if (title && title.length > 10) {
+                    return title.substring(0, 40);
+                }
+
+                return 'Assignment';
+            }
+
+            // Classify assignment type
+            classifyAssignment(title, location) {
+                const combined = (title + ' ' + location).toLowerCase();
+
+                if (combined.includes('commander') || combined.includes('command')) {
+                    return 'command';
+                } else if (combined.includes('student') || combined.includes('school') || combined.includes('college') || combined.includes('course') || combined.includes('fellow')) {
+                    return 'school';
+                } else if (combined.includes('joint') || combined.includes('pentagon') || combined.includes('joint staff')) {
+                    return 'joint';
+                } else if (combined.includes('chief') || combined.includes('director') || combined.includes('deputy') || combined.includes('officer')) {
+                    return 'staff';
+                } else {
+                    return 'operational';
+                }
+            }
+
+            // Validate assignment
+            isValidAssignment(assignment) {
+                return assignment && 
+                       assignment.title && 
+                       assignment.start &&
+                       assignment.title.length > 2;
+            }
+
+            // Main parse method
+            parse() {
+                return {
+                    rank: this.extractRank(),
+                    name: this.extractName(),
+                    yearGroup: this.extractYearGroup(),
+                    afsc: null,
+                    assignments: this.parseAssignments(),
+                    parseQuality: this.assessParseQuality()
+                };
+            }
+
+            // Assess parse quality
+            assessParseQuality() {
+                const rank = this.extractRank();
+                const name = this.extractName();
+                const yearGroup = this.extractYearGroup();
+                const assignments = this.parseAssignments();
+
+                let quality = 0;
+                let issues = [];
+
+                if (rank) quality += 25; else issues.push('Rank not detected');
+                if (name) quality += 25; else issues.push('Name not detected');
+                if (yearGroup) quality += 25; else issues.push('Year group not detected');
+                if (assignments.length > 15) quality += 25; else if (assignments.length > 5) quality += 15; else issues.push('Few assignments found');
+
+                return {
+                    score: quality,
+                    issues: issues,
+                    confidence: quality >= 85 ? 'High' : quality >= 60 ? 'Medium' : 'Low'
+                };
+            }
+        }
+
+        // Extract text from PDF
+        async function extractTextFromPDF(arrayBuffer) {
+            try {
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                let fullText = '';
+
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    const pageText = textContent.items.map(item => item.str).join(' ');
+                    fullText += pageText + ' ';
+                }
+
+                return fullText;
+            } catch (error) {
+                throw new Error('Failed to extract text from PDF: ' + error.message);
+            }
+        }
+
         // Tab switching
         function switchTab(tabName) {
             document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-            
+
             event.target.classList.add('active');
             document.getElementById(tabName).classList.add('active');
 
@@ -762,7 +1072,7 @@
             }
         }
 
-        // Add assignment to current chart
+        // Add assignment
         function addAssignment() {
             const assignment = {
                 type: document.getElementById('assignmentType').value,
@@ -781,14 +1091,14 @@
 
             currentChart.assignments.push(assignment);
             currentChart.assignments.sort((a, b) => a.start.localeCompare(b.start));
-            
+
             updateOfficerInfo();
             displayTimeline();
             displayRibbonChart();
             clearForm();
         }
 
-        // Update officer information
+        // Update officer info
         function updateOfficerInfo() {
             currentChart.officer = {
                 rank: document.getElementById('rank').value,
@@ -803,7 +1113,7 @@
         // Display timeline
         function displayTimeline() {
             const display = document.getElementById('timelineDisplay');
-            
+
             if (currentChart.assignments.length === 0) {
                 display.innerHTML = '<p style="color: var(--color-text-secondary); text-align: center; padding: 2rem;">No assignments added yet. Add your first career milestone above.</p>';
                 return;
@@ -813,7 +1123,7 @@
                 const startDate = new Date(assignment.start);
                 const endDate = assignment.end ? new Date(assignment.end) : new Date();
                 const duration = Math.round((endDate - startDate) / (1000 * 60 * 60 * 24 * 30));
-                
+
                 return `
                     <div class="timeline-entry">
                         <div class="timeline-date">${formatDate(assignment.start)} - ${assignment.end ? formatDate(assignment.end) : 'Present'} (${duration} months)</div>
@@ -832,7 +1142,7 @@
         // Display ribbon chart
         function displayRibbonChart() {
             const display = document.getElementById('ribbonChartDisplay');
-            
+
             if (currentChart.assignments.length === 0) {
                 display.innerHTML = '<p style="color: var(--color-text-secondary); text-align: center; padding: 2rem;">Add assignments to see your ribbon chart visualization</p>';
                 return;
@@ -844,7 +1154,7 @@
                 const end = a.end ? new Date(a.end).getFullYear() : new Date().getFullYear();
                 return [start, end];
             }).flat();
-            
+
             const minYear = Math.min(...years);
             const maxYear = Math.max(...years);
             const yearRange = [];
@@ -854,21 +1164,21 @@
 
             // Create grid
             let html = '<div class="ribbon-grid" style="grid-template-columns: 150px ' + yearRange.map(() => '1fr').join(' ') + ';">';
-            
-            // Header row
+
+            // Header
             html += '<div class="ribbon-cell ribbon-header">Year</div>';
             yearRange.forEach(year => {
                 html += `<div class="ribbon-cell ribbon-header">${year}</div>`;
             });
 
-            // Assignment rows
+            // Rows
             currentChart.assignments.forEach(assignment => {
                 html += `<div class="ribbon-cell ribbon-year">${assignment.title.substring(0, 20)}${assignment.title.length > 20 ? '...' : ''}</div>`;
-                
+
                 yearRange.forEach(year => {
                     const startYear = new Date(assignment.start).getFullYear();
                     const endYear = assignment.end ? new Date(assignment.end).getFullYear() : new Date().getFullYear();
-                    
+
                     if (year >= startYear && year <= endYear) {
                         html += `<div class="ribbon-cell"><div class="assignment-block assignment-type-${assignment.type}">${assignment.unit.split(' ')[0]}</div></div>`;
                     } else {
@@ -909,7 +1219,7 @@
         // Save chart
         function saveChart() {
             updateOfficerInfo();
-            
+
             if (!currentChart.officer.name || currentChart.assignments.length === 0) {
                 alert('Please add officer information and at least one assignment');
                 return;
@@ -917,7 +1227,7 @@
 
             const chartCopy = JSON.parse(JSON.stringify(currentChart));
             const existingIndex = savedCharts.findIndex(c => c.officer.name === chartCopy.officer.name);
-            
+
             if (existingIndex >= 0) {
                 if (confirm('A chart already exists for this officer. Update it?')) {
                     savedCharts[existingIndex] = chartCopy;
@@ -933,7 +1243,7 @@
         // Display saved charts
         function displaySavedCharts() {
             const display = document.getElementById('savedChartsList');
-            
+
             if (savedCharts.length === 0) {
                 display.innerHTML = '<p style="color: var(--color-text-secondary); text-align: center; padding: 2rem;">No saved charts yet</p>';
                 return;
@@ -943,7 +1253,7 @@
                 <div class="chart-card" onclick="loadChart(${index})">
                     <div class="chart-card-name">${chart.officer.rank} ${chart.officer.name}</div>
                     <div class="chart-card-info">
-                        <div>${chart.officer.afsc} | Year Group: ${chart.officer.yearGroup}</div>
+                        <div>${chart.officer.afsc ? chart.officer.afsc + ' | ' : ''}Year Group: ${chart.officer.yearGroup}</div>
                         <div style="margin-top: 0.25rem;">${chart.assignments.length} assignments</div>
                     </div>
                 </div>
@@ -953,8 +1263,7 @@
         // Load chart
         function loadChart(index) {
             currentChart = JSON.parse(JSON.stringify(savedCharts[index]));
-            
-            // Populate form
+
             document.getElementById('rank').value = currentChart.officer.rank;
             document.getElementById('officerName').value = currentChart.officer.name;
             document.getElementById('dutyTitle').value = currentChart.officer.dutyTitle || '';
@@ -964,243 +1273,138 @@
 
             displayTimeline();
             displayRibbonChart();
-            
-            switchTab('create');
-            document.querySelector('.tab[onclick*="create"]').click();
+
+            const createTab = document.querySelector('[onclick*="create"]');
+            createTab.click();
         }
 
-        // File upload handling with PDF.js
+        // Handle PDF upload
         async function handleFileUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
 
             const statusDiv = document.getElementById('uploadStatus');
-            const progressDiv = document.getElementById('parsingProgress');
-            const progressBar = document.getElementById('progressBar');
-            const extractedDiv = document.getElementById('extractedData');
-
-            statusDiv.innerHTML = '';
-            progressDiv.style.display = 'block';
-            progressBar.style.width = '0%';
+            statusDiv.innerHTML = '<div class="alert alert-info">🔄 Processing biography PDF...</div>';
 
             try {
-                // Read file as array buffer
                 const arrayBuffer = await file.arrayBuffer();
-                progressBar.style.width = '25%';
+                const text = await extractTextFromPDF(arrayBuffer);
 
-                // Load PDF document
-                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                progressBar.style.width = '50%';
+                // Parse the biography
+                const parser = new MilitaryBioParser(text);
+                const parsed = parser.parse();
 
-                // Extract text from all pages
-                let fullText = '';
-                for (let i = 1; i <= pdf.numPages; i++) {
-                    const page = await pdf.getPage(i);
-                    const textContent = await page.getTextContent();
-                    fullText += textContent.items.map(item => item.str).join(' ') + '\n';
-                }
-                progressBar.style.width = '75%';
-
-                // Parse the extracted text
-                const parsedData = parseMilitaryBiography(fullText);
-                lastParsedData = parsedData;
-                progressBar.style.width = '100%';
-
-                // Display extracted data
-                displayExtractedData(parsedData, file.name);
-                extractedDiv.style.display = 'block';
-
-                setTimeout(() => {
-                    progressDiv.style.display = 'none';
-                }, 500);
+                extractedBioData = parsed;
+                displayExtractedData(parsed, file.name);
 
             } catch (error) {
-                console.error('PDF parsing error:', error);
-                statusDiv.innerHTML = `<div class="alert alert-error">❌ Error parsing PDF: ${error.message}. Try uploading a different file.</div>`;
-                progressDiv.style.display = 'none';
+                statusDiv.innerHTML = `<div class="alert" style="background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;">❌ Error: ${error.message}</div>`;
             }
         }
 
-        // Parse military biography text
-        function parseMilitaryBiography(text) {
-            const data = {
-                officer: {
-                    rank: '',
-                    name: '',
-                    afsc: '',
-                    yearGroup: '',
-                    dutyTitle: '',
-                    currentUnit: ''
-                },
-                assignments: []
-            };
-
-            // Extract rank and name (usually at the beginning)
-            const rankMatch = text.match(/(Second Lieutenant|First Lieutenant|Captain|Major|Lieutenant Colonel|Colonel|Brigadier General|Major General)\s+([A-Z][a-z]+\s+[A-Z]\.?\s+[A-Z][a-z]+)/);
-            if (rankMatch) {
-                data.officer.rank = rankMatch[1];
-                data.officer.name = rankMatch[2].trim();
-            }
-
-            // Extract year group (graduation year)
-            const yearMatch = text.match(/(?:class of|graduated|USAF Academy|graduate of.*?)\s+(\d{4})/i);
-            if (yearMatch) {
-                data.officer.yearGroup = yearMatch[1];
-            }
-
-            // Extract AFSC/career field
-            const afscMatch = text.match(/(?:AFSC|career field|13S|11M|12M|14N|17D)\s*:?\s*([0-9A-Z\/]+)/i);
-            if (afscMatch) {
-                data.officer.afsc = afscMatch[1].trim();
-            }
-
-            // Extract current duty title and unit (usually near the beginning)
-            const dutyMatch = text.match(/(?:is the|serves as)\s+([^,]+),?\s+([^,\n]+)/);
-            if (dutyMatch) {
-                data.officer.dutyTitle = dutyMatch[1].trim();
-                data.officer.currentUnit = dutyMatch[2].trim();
-            }
-
-            // Extract assignments - look for date patterns followed by positions
-            const assignmentPattern = /([A-Za-z\s]+?)(?:\(([A-Za-z\s\/,]+?)\))?\s*,?\s*([^,]+(?:Squadron|Group|Flight|Command|Staff|Center|Academy|College|Headquarters|Base|AFB|SFB)(?:[^,]*)),?\s*([^,]*?)(?:,\s*(.*?),)?\s+(?:(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})|(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4}))\s*(?:–|-|to)\s*(?:(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})|(?:Present|Current)|(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4}))/gi;
-            
-            let match;
-            while ((match = assignmentPattern.exec(text)) !== null) {
-                const title = match[1].trim();
-                const unit = match[3].trim();
-                const location = match[4].trim();
-                
-                // Determine assignment type
-                let type = 'operational';
-                if (title.toLowerCase().includes('commander') || title.toLowerCase().includes('command')) {
-                    type = 'command';
-                } else if (title.toLowerCase().includes('chief') || title.toLowerCase().includes('staff')) {
-                    type = 'staff';
-                } else if (title.toLowerCase().includes('school') || title.toLowerCase().includes('college') || title.toLowerCase().includes('academy')) {
-                    type = 'school';
-                } else if (title.toLowerCase().includes('joint') || title.toLowerCase().includes('pentagon')) {
-                    type = 'joint';
-                }
-
-                // Parse dates
-                let startMonth = match[6] || getMonthNumber(match[10]);
-                let startYear = match[7] || match[11];
-                let endMonth = match[12] || getMonthNumber(match[16]);
-                let endYear = match[13] || match[17];
-
-                if (startYear && startMonth) {
-                    const startDate = `${startYear}-${String(startMonth).padStart(2, '0')}`;
-                    const endDate = endYear && endMonth ? `${endYear}-${String(endMonth).padStart(2, '0')}` : '';
-
-                    data.assignments.push({
-                        type: type,
-                        title: title,
-                        unit: unit,
-                        location: location,
-                        start: startDate,
-                        end: endDate,
-                        notes: ''
-                    });
-                }
-            }
-
-            // Sort by date
-            data.assignments.sort((a, b) => a.start.localeCompare(b.start));
-
-            return data;
-        }
-
-        // Helper function to convert month name to number
-        function getMonthNumber(monthName) {
-            const months = {
-                'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04',
-                'May': '05', 'Jun': '06', 'Jul': '07', 'Aug': '08',
-                'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
-            };
-            return months[monthName] || '01';
-        }
-
-        // Display extracted data for review
-        function displayExtractedData(data, filename) {
+        // Display extracted data
+        function displayExtractedData(data, fileName) {
+            const extractedDiv = document.getElementById('extractedData');
             const infoDiv = document.getElementById('extractedInfo');
-            
+            const qualityScore = data.parseQuality;
+
+            let qualityClass = 'parse-quality-low';
+            if (qualityScore.confidence === 'High') qualityClass = 'parse-quality-high';
+            else if (qualityScore.confidence === 'Medium') qualityClass = 'parse-quality-medium';
+
             let html = `
-                <div class="alert alert-success">✅ Successfully parsed ${filename}</div>
+                <div class="alert alert-success">✅ Successfully parsed ${fileName}</div>
+                <div class="parse-quality-info ${qualityClass}">
+                    <strong>Parse Quality: ${qualityScore.confidence}</strong> (Score: ${qualityScore.score}/100)
+                    ${qualityScore.issues.length > 0 ? '<br/>⚠️ Issues: ' + qualityScore.issues.join(', ') : ''}
+                </div>
                 <div class="officer-info">
                     <div class="info-item">
                         <div class="info-label">Rank</div>
-                        <div class="info-value">${data.officer.rank || 'Not detected'}</div>
+                        <div class="info-value">${data.rank || 'Not detected'}</div>
                     </div>
                     <div class="info-item">
                         <div class="info-label">Name</div>
-                        <div class="info-value">${data.officer.name || 'Not detected'}</div>
+                        <div class="info-value">${data.name || 'Not detected'}</div>
                     </div>
                     <div class="info-item">
                         <div class="info-label">Year Group</div>
-                        <div class="info-value">${data.officer.yearGroup || 'Not detected'}</div>
+                        <div class="info-value">${data.yearGroup || 'Not detected'}</div>
                     </div>
                     <div class="info-item">
-                        <div class="info-label">AFSC</div>
-                        <div class="info-value">${data.officer.afsc || 'Not detected'}</div>
+                        <div class="info-label">Assignments</div>
+                        <div class="info-value">${data.assignments.length} detected</div>
                     </div>
                 </div>
-                <div style="margin: 1.5rem 0;">
-                    <h3 style="font-size: 1.1rem; margin-bottom: 1rem;">Detected Assignments (${data.assignments.length})</h3>
             `;
 
-            data.assignments.forEach((assignment, index) => {
-                html += `
-                    <div class="timeline-entry">
-                        <div class="timeline-date">${assignment.start}${assignment.end ? ' - ' + assignment.end : ' - Present'}</div>
-                        <div style="font-weight: 600;">${assignment.title}</div>
-                        <div style="color: var(--color-text-secondary); font-size: 0.9rem;">${assignment.unit}${assignment.location ? ', ' + assignment.location : ''}</div>
-                        <span class="assignment-type-${assignment.type}" style="display: inline-block; margin-top: 0.5rem; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; text-transform: uppercase;">${assignment.type}</span>
-                    </div>
-                `;
-            });
+            if (data.assignments.length > 0) {
+                html += '<div style="margin-top: 1.5rem;"><strong>Assignment Summary:</strong></div>';
+                html += '<div style="margin-top: 0.5rem;">';
+                data.assignments.slice(0, 5).forEach((assignment, idx) => {
+                    html += `
+                        <div class="timeline-entry" style="margin-bottom: 1rem;">
+                            <div class="timeline-date">${formatDate(assignment.start)} - ${assignment.end ? formatDate(assignment.end) : 'Present'}</div>
+                            <div style="font-weight: 600;">${assignment.title}</div>
+                            <div style="color: var(--color-text-secondary); font-size: 0.9rem;">${assignment.unit}, ${assignment.location}</div>
+                            <span class="assignment-type-${assignment.type}" style="display: inline-block; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; text-transform: uppercase; margin-top: 0.5rem;">${assignment.type}</span>
+                        </div>
+                    `;
+                });
+                if (data.assignments.length > 5) {
+                    html += `<p style="color: var(--color-text-secondary); font-size: 0.9rem;">... and ${data.assignments.length - 5} more assignments</p>`;
+                }
+                html += '</div>';
+            }
 
-            html += '</div>';
             infoDiv.innerHTML = html;
+            extractedDiv.style.display = 'block';
+            document.getElementById('uploadStatus').innerHTML = '';
         }
 
         // Create chart from biography
         function createChartFromBio() {
-            if (!lastParsedData) {
-                alert('Please upload a PDF first');
+            if (!extractedBioData) {
+                alert('No extracted data available');
                 return;
             }
 
-            currentChart = JSON.parse(JSON.stringify(lastParsedData));
-            
+            currentChart = {
+                officer: {
+                    rank: extractedBioData.rank || '',
+                    name: extractedBioData.name || '',
+                    afsc: extractedBioData.afsc || '',
+                    yearGroup: extractedBioData.yearGroup || ''
+                },
+                assignments: extractedBioData.assignments
+            };
+
             // Populate form
-            document.getElementById('rank').value = currentChart.officer.rank;
-            document.getElementById('officerName').value = currentChart.officer.name;
-            document.getElementById('dutyTitle').value = currentChart.officer.dutyTitle || '';
-            document.getElementById('currentUnit').value = currentChart.officer.currentUnit || '';
-            document.getElementById('afsc').value = currentChart.officer.afsc;
-            document.getElementById('yearGroup').value = currentChart.officer.yearGroup;
+            document.getElementById('rank').value = currentChart.officer.rank || '';
+            document.getElementById('officerName').value = currentChart.officer.name || '';
+            document.getElementById('afsc').value = currentChart.officer.afsc || '';
+            document.getElementById('yearGroup').value = currentChart.officer.yearGroup || '';
 
             displayTimeline();
             displayRibbonChart();
-            
-            // Switch to create tab
-            const createTab = document.querySelector('.tab[onclick*="create"]');
-            if (createTab) createTab.click();
-            
-            alert('✅ Ribbon chart created from biography! Review and edit assignments as needed.');
+
+            const createTab = document.querySelector('[onclick*="create"]');
+            createTab.click();
+
+            alert(`Chart created for ${currentChart.officer.rank} ${currentChart.officer.name} with ${currentChart.assignments.length} assignments!`);
         }
 
-        // Reset bio upload
-        function resetBioUpload() {
+        // Reset upload
+        function resetUpload() {
             document.getElementById('bioFile').value = '';
-            document.getElementById('uploadStatus').innerHTML = '';
             document.getElementById('extractedData').style.display = 'none';
-            lastParsedData = null;
+            document.getElementById('uploadStatus').innerHTML = '';
+            extractedBioData = null;
         }
 
-        // Drag and drop handling
+        // Drag and drop
         const fileUploadArea = document.getElementById('fileUpload');
-        
+
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
             fileUploadArea.addEventListener(eventName, preventDefaults, false);
         });
@@ -1241,23 +1445,20 @@
             const matchesDiv = document.getElementById('mentorMatches');
             const listDiv = document.getElementById('mentorMatchesList');
 
-            // Simple matching algorithm based on assignment types
             const matches = savedCharts.map(chart => {
                 let score = 0;
                 const assignmentTypes = chart.assignments.map(a => a.type);
-                
+
                 interests.forEach(interest => {
                     if (assignmentTypes.includes(interest)) {
                         score += 20;
                     }
                 });
 
-                // Bonus for diverse experience
                 const uniqueTypes = new Set(assignmentTypes);
                 score += uniqueTypes.size * 5;
 
-                // Bonus for senior officers
-                if (chart.officer.rank.includes('Col') || chart.officer.rank.includes('Gen')) {
+                if (chart.officer.rank && (chart.officer.rank.includes('Col') || chart.officer.rank.includes('Gen'))) {
                     score += 15;
                 }
 
@@ -1281,7 +1482,7 @@
                                 ${chart.officer.rank} ${chart.officer.name}
                             </div>
                             <div style="color: var(--color-text-secondary); margin-bottom: 0.5rem;">
-                                ${chart.officer.afsc} | Year Group: ${chart.officer.yearGroup}
+                                ${chart.officer.afsc ? chart.officer.afsc + ' | ' : ''}Year Group: ${chart.officer.yearGroup}
                             </div>
                             <div style="font-size: 0.85rem;">
                                 <strong>Career Experience:</strong>
@@ -1304,12 +1505,12 @@
         function viewMentorDetails(index) {
             const chart = savedCharts[index];
             document.getElementById('modalTitle').textContent = `${chart.officer.rank} ${chart.officer.name} - Career Progression`;
-            
+
             let html = `
                 <div style="margin-bottom: 1.5rem;">
                     <div style="font-weight: 600; margin-bottom: 0.5rem;">Contact for Mentorship</div>
                     <div style="color: var(--color-text-secondary);">
-                        Use this career progression to understand potential paths and reach out through your chain of command or MyVector for mentorship opportunities.
+                        Use this career progression to understand potential paths and reach out through your chain of command or service mentorship programs.
                     </div>
                 </div>
                 <div style="font-weight: 600; margin-bottom: 1rem;">Career Timeline:</div>
@@ -1335,7 +1536,7 @@
             document.getElementById('detailModal').classList.remove('active');
         }
 
-        // Initialize display
+        // Initialize
         displayTimeline();
         displayRibbonChart();
         displaySavedCharts();
