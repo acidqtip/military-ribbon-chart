@@ -439,10 +439,10 @@
         </div>
 
         <div class="tabs">
-            <button class="tab-btn active" onclick="switchTab(event, 'create'); return false;">Create Chart</button>
-            <button class="tab-btn" onclick="switchTab(event, 'upload'); return false;">Upload Biography</button>
-            <button class="tab-btn" onclick="switchTab(event, 'database'); return false;">Saved Charts</button>
-            <button class="tab-btn" onclick="switchTab(event, 'matching'); return false;">Mentor Matching</button>
+            <button class="tab-btn active" data-tab="create">Create Chart</button>
+            <button class="tab-btn" data-tab="upload">Upload Biography</button>
+            <button class="tab-btn" data-tab="database">Saved Charts</button>
+            <button class="tab-btn" data-tab="matching">Mentor Matching</button>
         </div>
 </parameter>
 
@@ -595,20 +595,21 @@
 
         let database = JSON.parse(localStorage.getItem('ribbonChartDB')) || [];
 
-        // Tab switching - FIXED: Proper event handling without preventDefault
-        function switchTab(event, tabName) {
-            // Get the button that was clicked
-            const clickedBtn = event.currentTarget;
-            
+        // Tab switching function
+        function switchTab(tabName) {
             // Remove active class from all tabs and buttons
             document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
             
             // Add active class to selected tab and button
             const tabElement = document.getElementById(tabName);
+            const activeBtn = document.querySelector(`[data-tab="${tabName}"]`);
+            
             if (tabElement) {
                 tabElement.classList.add('active');
-                clickedBtn.classList.add('active');
+            }
+            if (activeBtn) {
+                activeBtn.classList.add('active');
             }
             
             // Render database if switching to database tab
@@ -616,6 +617,18 @@
                 renderDatabase();
             }
         }
+
+        // Initialize tab event listeners when DOM is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            const tabButtons = document.querySelectorAll('.tab-btn');
+            tabButtons.forEach(button => {
+                button.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const tabName = this.getAttribute('data-tab');
+                    switchTab(tabName);
+                });
+            });
+        });
 </parameter>
 
         // Add assignment - FIXED: Full function restoration
