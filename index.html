@@ -439,11 +439,12 @@
         </div>
 
         <div class="tabs">
-            <button class="tab-btn active" onclick="switchTab(event, 'create')">Create Chart</button>
-            <button class="tab-btn" onclick="switchTab(event, 'upload')">Upload Biography</button>
-            <button class="tab-btn" onclick="switchTab(event, 'database')">Saved Charts</button>
-            <button class="tab-btn" onclick="switchTab(event, 'matching')">Mentor Matching</button>
+            <button class="tab-btn active" onclick="switchTab(event, 'create'); return false;">Create Chart</button>
+            <button class="tab-btn" onclick="switchTab(event, 'upload'); return false;">Upload Biography</button>
+            <button class="tab-btn" onclick="switchTab(event, 'database'); return false;">Saved Charts</button>
+            <button class="tab-btn" onclick="switchTab(event, 'matching'); return false;">Mentor Matching</button>
         </div>
+</parameter>
 
         <!-- CREATE CHART TAB -->
         <div id="create" class="tab-content active">
@@ -594,24 +595,28 @@
 
         let database = JSON.parse(localStorage.getItem('ribbonChartDB')) || [];
 
-        // Tab switching - FIXED: Added event parameter
+        // Tab switching - FIXED: Proper event handling without preventDefault
         function switchTab(event, tabName) {
-            // Prevent default button behavior
-            event.preventDefault();
+            // Get the button that was clicked
+            const clickedBtn = event.currentTarget;
             
             // Remove active class from all tabs and buttons
             document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
             
             // Add active class to selected tab and button
-            document.getElementById(tabName).classList.add('active');
-            event.target.classList.add('active');
+            const tabElement = document.getElementById(tabName);
+            if (tabElement) {
+                tabElement.classList.add('active');
+                clickedBtn.classList.add('active');
+            }
             
             // Render database if switching to database tab
             if (tabName === 'database') {
                 renderDatabase();
             }
         }
+</parameter>
 
         // Add assignment - FIXED: Full function restoration
         function addAssignment() {
