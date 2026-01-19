@@ -854,7 +854,151 @@
             }
         }
 
-        // ROBUST PDF PARSING: Section-based extraction
+        // IMPROVED PDF PARSING - SECTION-AWARE & CONTEXT-SENSITIVE
+        // Handles promotion history sections, multi-line text, and varied PDF formats
+        
+        function normalizeWhitespace(text) {
+            // Collapse multiple spaces and line breaks, but preserve word boundaries
+            return text.replace(/\s+/g, ' ').trim();
+        }
+
+        function extractBiographyMetadata(bioText) {
+            // Extract rank, name, AFSC from biography section only
+            const result = { rank: '', name: '', afsc: '' };
+            
+            // Get first few lines (header contains rank and name)
+            const headerLines = bioText.split('\n').slice(0, 3).join(' ');
+            
+            // Extract rank - look for rank keyword at start of header
+            const rankPattern = /^(MAJOR GENERAL|LIEUTENANT GENERAL|BRIGADIER GENERAL|COLONEL|LIEUTENANT COLONEL|CAPTAIN|FIRST LIEUTENANT|SECOND LIEUTENANT)/i;
+            const rankMatch = headerLines.match(rankPattern);
+            if (rankMatch) {
+                result.rank = rankMatch[1].toUpperCase();
+            }
+            
+            // Extract name - get text between rank and first period/comma/"is"
+            if (result.rank) {
+                const namePattern = new RegExp(`${result.rank}\\s+([A-Z][A-Za-z\\s\\.,'\\-]+?)(?:\\.|,|\\sis\\s)`, 'i');
+                const nameMatch = headerLines.match(namePattern);
+                if (nameMatch) {
+                    let name = nameMatch[1].trim();
+                    // Remove rank abbreviations from name (Lt. Gen., Maj. Gen., etc.)
+                    name = name.replace(/\b(?:Lt\.|Maj\.|Gen\.|BGen\.|Brig\.|Col\.|LtCol\.)\s+/gi, '');
+                    // Take first 3 parts of name to avoid duplicates
+                    const parts = name.split(/\s+/);
+                    if (parts.length > 0) {
+                        result.name = parts.slice(0, 3).join(' ').trim();
+                    }
+                }
+            }
+            
+            // Extract AFSC - look for pattern like "13S000" or "11/12M MWS"
+            const afscPattern = /AFSC[:\s]+([0-9A-Z\/\s]+)/i;
+            const afscMatch = bioText.match(afscPattern);
+            if (afscMatch) {
+                result.afsc = afscMatch[1].trim().split('\n')[0];
+            }
+            
+            return result;
+        }
+
+        function extractEducationInfo(eduText) {
+            // Extract year group from education section
+            // Look for first 4-digit year that looks like a commission/degree year
+            
+            // Pattern 1: "1993 Bachelor of Science" or "1998 graduate of"
+            const degreePattern = /(\d{4})\s+(?:Bachelor|Master|Doctorate|Distinguished Graduate|Top Graduate|graduate)/i;
+            const degreeMatch = eduText.match(degreePattern);
+            if (degreeMatch) {
+                const year = degreeMatch[1];
+                if (year >= '1940' && year <= '2025') {
+                    return year;
+                }
+            }
+            
+            // Pattern 2: Just first 4-digit year in section
+            const yearPattern = /(\d{4})/;
+            const yearMatch = eduText.match(yearPattern);
+            if (yearMatch) {
+                const year = yearMatch[1];
+                if (year >= '1940' && year <= '2025') {
+                    return year;
+                }
+            }
+            
+            return '';
+        }
+
+        function parseAssignments(assignmentText) {
+            const assignments = [];
+            
+            // Normalize whitespace first - critical for handling multi-line PDF text
+            const normalizedText = normalizeWhitespace(assignmentText);
+            
+            // Split by numbered entries: 1. 2. 3. etc.
+            // Handles spacing variations and multi-line text
+            const assignmentPattern = /^\s*(\d+)\.\s+(.+?)(?=^\s*\d+\.|$)/gms;
+            let match;
+            
+            while ((match = assignmentPattern.exec(normalizedText)) !== null) {
+                const assignmentLine = match[2].trim();
+                
+                // Parse assignment: Date–Date, Title, Location, (Notes)
+                // Support both en-dash (–) and hyphen (-) and special unicode dashes
+                const datePattern = /^([A-Za-z]+\s+\d{4})[\s\–\-−–]+([A-Za-z]+\s+\d{4}|Present)(?:[,\s])/i;
+                const dateMatch = assignmentLine.match(datePattern);
+                
+                if (dateMatch) {
+                    const startDateStr = dateMatch[1];
+                    const endDateStr = dateMatch[2];
+                    
+                    const startDate = convertDateToYYYYMM(startDateStr);
+                    const endDate = endDateStr.toLowerCase() === 'present' ? '' : convertDateToYYYYMM(endDateStr);
+                    
+                    if (!startDate) continue;
+                    
+                    // Everything after the date range
+                    const remainingText = assignmentLine.substring(dateMatch[0].length).trim();
+                    
+                    // Parse remaining as: Title, Location, (Notes)
+                    // Split by comma to separate fields
+                    const parts = remainingText.split(/,\s*/).map(p => p.trim());
+                    
+                    let title = '';
+                    let location = '';
+                    let notes = '';
+                    
+                    if (parts.length >= 1) {
+                        title = parts[0];
+                    }
+                    if (parts.length >= 2) {
+                        // Location is everything from second part onward, minus any notes
+                        location = parts.slice(1).join(', ');
+                    }
+                    
+                    // Extract parenthetical notes if present
+                    const parentPattern = /\(([^)]+)\)/;
+                    const parentMatch = remainingText.match(parentPattern);
+                    if (parentMatch) {
+                        notes = parentMatch[1];
+                    }
+                    
+                    const assignment = {
+                        startDate: startDate,
+                        endDate: endDate,
+                        title: title || 'Assignment',
+                        type: classifyAssignmentType(title),
+                        location: location,
+                        notes: notes
+                    };
+                    
+                    assignments.push(assignment);
+                }
+            }
+            
+            return assignments;
+        }
+
         function parseOfficerBiography(text) {
             const result = {
                 rank: '',
@@ -865,88 +1009,50 @@
                 parseQuality: 'unknown'
             };
 
-            // Extract rank
-            const rankPattern = /(?:MAJOR GENERAL|LIEUTENANT GENERAL|BRIGADIER GENERAL|COLONEL|LIEUTENANT COLONEL|CAPTAIN|FIRST LIEUTENANT|SECOND LIEUTENANT)/i;
-            const rankMatch = text.match(rankPattern);
-            if (rankMatch) result.rank = rankMatch[0].toUpperCase();
+            // STEP 1: Find and extract major sections using boundaries
+            const bioMatch = text.match(/BIOGRAPHY\s*\n+(.+?)(?=EDUCATION|ASSIGNMENTS|OTHER|$)/is);
+            const bioText = bioMatch ? bioMatch[1] : '';
+            
+            const eduMatch = text.match(/EDUCATION\s*\n+(.+?)(?=ASSIGNMENTS|AWARDS|DECORATIONS|OTHER|$)/is);
+            const eduText = eduMatch ? eduMatch[1] : '';
+            
+            const assignMatch = text.match(/ASSIGNMENTS\s*\n+(.+?)(?=SUMMARY OF|MAJOR AWARDS|EDUCATION|OTHER|MILITARY|$)/is);
+            const assignText = assignMatch ? assignMatch[1] : '';
 
-            // Extract name
-            const namePattern = /(?:Major General|Brigadier General|Lieutenant General|Colonel|Lieutenant Colonel|Captain|First Lieutenant|Second Lieutenant)\s+([A-Z][A-Za-z\s\.]+?)(?:\s+(?:is|was|served|entered)|\n)/i;
-            const nameMatch = text.match(namePattern);
-            if (nameMatch) result.name = nameMatch[1].trim();
+            // STEP 2: Extract metadata from biography section only (not entire document)
+            if (bioText) {
+                const bioMeta = extractBiographyMetadata(bioText);
+                result.rank = bioMeta.rank;
+                result.name = bioMeta.name;
+                result.afsc = bioMeta.afsc;
+            }
 
-            // Extract year group
-            const ygPattern = /Year Group[:\s]+(\d{4})|commissioned in (\d{4})|(?:Bachelor of Science|Bachelor of Arts)[^,]*,?\s*(\d{4})/i;
-            const ygMatch = text.match(ygPattern);
-            if (ygMatch) result.yearGroup = ygMatch[1] || ygMatch[2] || ygMatch[3];
+            // STEP 3: Extract year group from education section only
+            if (eduText) {
+                result.yearGroup = extractEducationInfo(eduText);
+            }
 
-            // Extract AFSC
-            const afscPattern = /AFSC[:\s]+([0-9A-Za-z\/]+)/i;
-            const afscMatch = text.match(afscPattern);
-            if (afscMatch) result.afsc = afscMatch[1].trim();
-
-            // ROBUST ASSIGNMENT EXTRACTION
-            const assignmentsSectionRegex = /ASSIGNMENTS[\s\n]+(.+?)(?=MAJOR AWARDS|SUMMARY OF|EDUCATION|OTHER ACHIEVEMENTS|$)/is;
-            const assignmentsSectionMatch = text.match(assignmentsSectionRegex);
-
-            if (assignmentsSectionMatch) {
-                const assignmentsText = assignmentsSectionMatch[1];
-                const assignmentPattern = /^\s*(\d+)\.\s+(.+?)(?=^\s*\d+\.|$)/gms;
-                let match;
-
-                while ((match = assignmentPattern.exec(assignmentsText)) !== null) {
-                    const assignmentNumber = match[1];
-                    const assignmentText = match[2].trim();
-
-                    const dateRangePattern = /^([A-Za-z]+\s+\d{4})[\s\–-]+([A-Za-z]+\s+\d{4}|Present)/i;
-                    const dateMatch = assignmentText.match(dateRangePattern);
-
-                    if (dateMatch) {
-                        const startDateStr = dateMatch[1];
-                        const endDateStr = dateMatch[2];
-
-                        const startDate = convertDateToYYYYMM(startDateStr);
-                        const endDate = endDateStr.toLowerCase() === 'present' ? '' : convertDateToYYYYMM(endDateStr);
-
-                        const titleAndLocation = assignmentText.substring(dateMatch[0].length).trim();
-                        const parenthesesPattern = /\(([^)]+)\)/;
-                        const parenMatch = titleAndLocation.match(parenthesesPattern);
-                        const details = parenMatch ? parenMatch[1] : '';
-
-                        const titleText = titleAndLocation.replace(/\([^)]*\)/g, '').trim();
-                        let location = '';
-                        if (parenMatch) {
-                            location = parenMatch[1];
-                        }
-
-                        const assignment = {
-                            startDate: startDate,
-                            endDate: endDate,
-                            title: titleText || 'Assignment',
-                            type: classifyAssignmentType(titleText),
-                            location: location,
-                            notes: details
-                        };
-
-                        if (assignment.startDate) {
-                            result.assignments.push(assignment);
-                        }
-                    }
-                }
-
+            // STEP 4: Parse assignments with improved multi-line, comma-separated parser
+            if (assignText) {
+                result.assignments = parseAssignments(assignText);
+                
+                // Quality assessment based on extraction success
                 if (result.assignments.length > 20) {
                     result.parseQuality = 'excellent';
                 } else if (result.assignments.length > 10) {
                     result.parseQuality = 'good';
                 } else if (result.assignments.length > 3) {
                     result.parseQuality = 'fair';
-                } else {
+                } else if (result.assignments.length > 0) {
                     result.parseQuality = 'poor';
+                } else {
+                    result.parseQuality = 'failed';
                 }
             }
 
             return result;
         }
+</parameter>
 
         function convertDateToYYYYMM(dateStr) {
             const months = {
