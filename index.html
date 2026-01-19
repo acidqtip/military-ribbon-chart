@@ -141,6 +141,44 @@
             box-shadow: 0 5px 15px rgba(108, 117, 125, 0.3);
         }
 
+        .debug-panel {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+
+        .debug-panel h4 {
+            margin-bottom: 10px;
+            color: #2a5298;
+        }
+
+        .debug-log {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            max-height: 150px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+            font-size: 11px;
+        }
+
+        .debug-log .success {
+            color: #155724;
+        }
+
+        .debug-log .error {
+            color: #721c24;
+        }
+
+        .debug-log .info {
+            color: #004085;
+        }
+
         .ribbon-chart {
             margin: 30px 0;
             background: #f9f9f9;
@@ -396,10 +434,6 @@
             color: #2a5298;
         }
 
-        .matching-container {
-            margin-top: 30px;
-        }
-
         .mentor-match {
             background: white;
             border: 1px solid #e0e0e0;
@@ -444,11 +478,20 @@
             <button class="tab-btn" data-tab="database">Saved Charts</button>
             <button class="tab-btn" data-tab="matching">Mentor Matching</button>
         </div>
-</parameter>
 
         <!-- CREATE CHART TAB -->
         <div id="create" class="tab-content active">
             <h2>Create Ribbon Chart</h2>
+            
+            <div class="debug-panel">
+                <h4>🧪 Test Panel (Remove Before Shipping)</h4>
+                <div style="margin-bottom: 10px;">
+                    <button style="background: #007bff; font-size: 12px; padding: 8px 12px;" onclick="testTabSwitching()">Test Tab Switching</button>
+                    <button style="background: #28a745; font-size: 12px; padding: 8px 12px; margin-left: 5px;" onclick="testAddAssignment()">Test Add Assignment</button>
+                    <button style="background: #ffc107; font-size: 12px; padding: 8px 12px; margin-left: 5px; color: #333;" onclick="clearDebugLog()">Clear Log</button>
+                </div>
+                <div class="debug-log" id="debugLog">Debug messages will appear here...</div>
+            </div>
             
             <div class="form-group">
                 <label>Officer Information</label>
@@ -531,14 +574,14 @@
                 </div>
             </div>
 
-            <button onclick="addAssignment()">Add Assignment</button>
-            <button class="btn-secondary" onclick="clearForm()">Clear</button>
+            <button id="addAssignmentBtn">Add Assignment</button>
+            <button class="btn-secondary" id="clearFormBtn">Clear</button>
 
             <div id="assignmentsList" style="margin-top: 30px;"></div>
 
             <div style="margin-top: 20px;">
-                <button onclick="saveChart()" style="background: #28a745;">Save Chart to Database</button>
-                <button class="btn-secondary" onclick="generateVisualization()">Generate Visualization</button>
+                <button id="saveChartBtn" style="background: #28a745;">Save Chart to Database</button>
+                <button class="btn-secondary" id="generateVizBtn">Generate Visualization</button>
             </div>
 
             <div id="ribbonChart"></div>
@@ -575,14 +618,88 @@
                 <input type="text" id="aspirationSearch" placeholder="e.g., Space Operations, Program Management, Joint Staff">
             </div>
 
-            <button onclick="findMentors()">Find Matching Mentors</button>
+            <button id="findMentorsBtn">Find Matching Mentors</button>
 
             <div id="matchingResults" style="margin-top: 30px;"></div>
         </div>
     </div>
 
     <script>
-        // Setup PDF.js
+        // ============================================================
+        // DEBUG UTILITIES
+        // ============================================================
+        function debugLog(message, type = 'info') {
+            const log = document.getElementById('debugLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type;
+            const entry = `<div class="${className}">[${timestamp}] ${message}</div>`;
+            log.innerHTML += entry;
+            log.scrollTop = log.scrollHeight;
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        function clearDebugLog() {
+            document.getElementById('debugLog').innerHTML = 'Debug messages will appear here...';
+        }
+
+        // ============================================================
+        // TEST FUNCTIONS FOR BETA
+        // ============================================================
+        function testTabSwitching() {
+            debugLog('🧪 Starting Tab Switching Test...', 'info');
+            const tabs = ['create', 'upload', 'database', 'matching'];
+            let testsPassed = 0;
+
+            tabs.forEach(tabName => {
+                try {
+                    switchTab(tabName);
+                    const activeTab = document.querySelector(`[data-tab="${tabName}"].active`);
+                    const activeContent = document.getElementById(tabName).classList.contains('active');
+                    
+                    if (activeTab && activeContent) {
+                        debugLog(`✓ Tab "${tabName}" switched successfully`, 'success');
+                        testsPassed++;
+                    } else {
+                        debugLog(`✗ Tab "${tabName}" failed to switch`, 'error');
+                    }
+                } catch (e) {
+                    debugLog(`✗ Tab "${tabName}" error: ${e.message}`, 'error');
+                }
+            });
+
+            debugLog(`Tab Test Complete: ${testsPassed}/${tabs.length} passed`, testsPassed === tabs.length ? 'success' : 'error');
+        }
+
+        function testAddAssignment() {
+            debugLog('🧪 Starting Add Assignment Test...', 'info');
+            try {
+                // Set form values
+                document.getElementById('assignmentStart').value = '2020-01';
+                document.getElementById('assignmentEnd').value = '2021-06';
+                document.getElementById('assignmentTitle').value = 'Test Commander';
+                document.getElementById('assignmentType').value = 'COMMAND';
+                document.getElementById('assignmentLocation').value = 'Peterson AFB';
+                document.getElementById('assignmentNotes').value = 'Test Assignment';
+
+                debugLog('Form values set', 'info');
+
+                // Call addAssignment
+                addAssignment();
+
+                // Check if assignment was added
+                if (currentChart.assignments.length > 0) {
+                    debugLog(`✓ Assignment added successfully (Total: ${currentChart.assignments.length})`, 'success');
+                } else {
+                    debugLog('✗ Assignment was not added to chart', 'error');
+                }
+            } catch (e) {
+                debugLog(`✗ Add Assignment error: ${e.message}`, 'error');
+            }
+        }
+
+        // ============================================================
+        // CORE APPLICATION STATE
+        // ============================================================
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
         let currentChart = {
@@ -595,44 +712,120 @@
 
         let database = JSON.parse(localStorage.getItem('ribbonChartDB')) || [];
 
-        // Tab switching function
+        // ============================================================
+        // TAB SWITCHING - COMPLETELY REWRITTEN
+        // ============================================================
         function switchTab(tabName) {
-            // Remove active class from all tabs and buttons
-            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            debugLog(`Switching to tab: ${tabName}`, 'info');
             
-            // Add active class to selected tab and button
-            const tabElement = document.getElementById(tabName);
-            const activeBtn = document.querySelector(`[data-tab="${tabName}"]`);
-            
-            if (tabElement) {
+            try {
+                // Remove active from all tabs and buttons
+                document.querySelectorAll('.tab-content').forEach(tab => {
+                    tab.classList.remove('active');
+                });
+                document.querySelectorAll('.tab-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+
+                // Add active to selected tab
+                const tabElement = document.getElementById(tabName);
+                if (!tabElement) {
+                    throw new Error(`Tab element with id "${tabName}" not found`);
+                }
                 tabElement.classList.add('active');
-            }
-            if (activeBtn) {
-                activeBtn.classList.add('active');
-            }
-            
-            // Render database if switching to database tab
-            if (tabName === 'database') {
-                renderDatabase();
+
+                // Add active to button
+                const btn = document.querySelector(`[data-tab="${tabName}"]`);
+                if (!btn) {
+                    throw new Error(`Button with data-tab="${tabName}" not found`);
+                }
+                btn.classList.add('active');
+
+                // Render database if needed
+                if (tabName === 'database') {
+                    renderDatabase();
+                }
+
+                debugLog(`✓ Successfully switched to ${tabName}`, 'success');
+            } catch (e) {
+                debugLog(`✗ Error switching tab: ${e.message}`, 'error');
             }
         }
 
-        // Initialize tab event listeners when DOM is ready
+        // ============================================================
+        // INITIALIZE TAB EVENT LISTENERS
+        // ============================================================
         document.addEventListener('DOMContentLoaded', function() {
+            debugLog('🚀 Application initialized', 'success');
+
+            // Add tab button listeners
             const tabButtons = document.querySelectorAll('.tab-btn');
-            tabButtons.forEach(button => {
+            debugLog(`Found ${tabButtons.length} tab buttons`, 'info');
+
+            tabButtons.forEach((button, index) => {
                 button.addEventListener('click', function(e) {
                     e.preventDefault();
                     const tabName = this.getAttribute('data-tab');
+                    debugLog(`Tab button ${index + 1} clicked (${tabName})`, 'info');
                     switchTab(tabName);
                 });
             });
-        });
-</parameter>
 
-        // Add assignment - FIXED: Full function restoration
+            // Add assignment button listener
+            const addAssignmentBtn = document.getElementById('addAssignmentBtn');
+            if (addAssignmentBtn) {
+                addAssignmentBtn.addEventListener('click', function() {
+                    debugLog('Add Assignment button clicked', 'info');
+                    addAssignment();
+                });
+            }
+
+            // Clear form button listener
+            const clearFormBtn = document.getElementById('clearFormBtn');
+            if (clearFormBtn) {
+                clearFormBtn.addEventListener('click', function() {
+                    debugLog('Clear Form button clicked', 'info');
+                    clearForm();
+                });
+            }
+
+            // Save chart button listener
+            const saveChartBtn = document.getElementById('saveChartBtn');
+            if (saveChartBtn) {
+                saveChartBtn.addEventListener('click', function() {
+                    debugLog('Save Chart button clicked', 'info');
+                    saveChart();
+                });
+            }
+
+            // Generate visualization button listener
+            const generateVizBtn = document.getElementById('generateVizBtn');
+            if (generateVizBtn) {
+                generateVizBtn.addEventListener('click', function() {
+                    debugLog('Generate Visualization button clicked', 'info');
+                    generateVisualization();
+                });
+            }
+
+            // Find mentors button listener
+            const findMentorsBtn = document.getElementById('findMentorsBtn');
+            if (findMentorsBtn) {
+                findMentorsBtn.addEventListener('click', function() {
+                    debugLog('Find Mentors button clicked', 'info');
+                    findMentors();
+                });
+            }
+
+            debugLog('✓ All event listeners attached', 'success');
+            initializeSampleData();
+        });
+
+        // ============================================================
+        // ASSIGNMENT MANAGEMENT
+        // ============================================================
         function addAssignment() {
+            debugLog('addAssignment() called', 'info');
+
             const startDate = document.getElementById('assignmentStart').value;
             const endDate = document.getElementById('assignmentEnd').value;
             const title = document.getElementById('assignmentTitle').value;
@@ -640,7 +833,10 @@
             const location = document.getElementById('assignmentLocation').value;
             const notes = document.getElementById('assignmentNotes').value;
 
+            debugLog(`Start: ${startDate}, Title: ${title}`, 'info');
+
             if (!startDate || !title) {
+                debugLog('✗ Validation failed: Missing startDate or title', 'error');
                 alert('Please fill in start date and assignment title');
                 return;
             }
@@ -655,6 +851,8 @@
             };
 
             currentChart.assignments.push(assignment);
+            debugLog(`✓ Assignment added. Total assignments: ${currentChart.assignments.length}`, 'success');
+            
             displayAssignmentsList();
             clearAssignmentForm();
         }
@@ -677,6 +875,7 @@
             document.getElementById('assignmentsList').innerHTML = '';
             document.getElementById('ribbonChart').innerHTML = '';
             clearAssignmentForm();
+            debugLog('✓ Form cleared', 'success');
         }
 
         function displayAssignmentsList() {
@@ -702,12 +901,18 @@
 
         function removeAssignment(index) {
             currentChart.assignments.splice(index, 1);
+            debugLog(`✓ Assignment removed. Total: ${currentChart.assignments.length}`, 'success');
             displayAssignmentsList();
         }
 
-        // Generate ribbon chart visualization
+        // ============================================================
+        // VISUALIZATION
+        // ============================================================
         function generateVisualization() {
+            debugLog('generateVisualization() called', 'info');
+
             if (currentChart.assignments.length === 0) {
+                debugLog('✗ No assignments to visualize', 'error');
                 alert('No assignments to visualize');
                 return;
             }
@@ -762,16 +967,23 @@
             });
             legend += '</div></div>';
             container.innerHTML += legend;
+
+            debugLog(`✓ Visualization generated for ${sortedYears.length} years`, 'success');
         }
 
-        // Save chart to database
+        // ============================================================
+        // DATABASE MANAGEMENT
+        // ============================================================
         function saveChart() {
+            debugLog('saveChart() called', 'info');
+
             currentChart.rank = document.getElementById('rank').value;
             currentChart.name = document.getElementById('officerName').value;
             currentChart.yearGroup = document.getElementById('yearGroup').value;
             currentChart.afsc = document.getElementById('afsc').value;
 
             if (!currentChart.name || !currentChart.assignments.length) {
+                debugLog('✗ Validation failed: Missing name or assignments', 'error');
                 alert('Please enter officer name and at least one assignment');
                 return;
             }
@@ -780,12 +992,14 @@
             database.push(JSON.parse(JSON.stringify(currentChart)));
             localStorage.setItem('ribbonChartDB', JSON.stringify(database));
 
+            debugLog(`✓ Chart saved. Database size: ${database.length}`, 'success');
             alert('Chart saved successfully!');
             clearForm();
         }
 
-        // Render database
         function renderDatabase() {
+            debugLog(`renderDatabase() called - ${database.length} charts in database`, 'info');
+
             const grid = document.getElementById('databaseGrid');
             grid.innerHTML = '';
 
@@ -812,11 +1026,14 @@
             if (confirm('Delete this chart?')) {
                 database = database.filter(chart => chart.id !== id);
                 localStorage.setItem('ribbonChartDB', JSON.stringify(database));
+                debugLog(`✓ Chart deleted. Database size: ${database.length}`, 'success');
                 renderDatabase();
             }
         }
 
-        // PDF Upload and Parsing with ROBUST SECTION-BASED APPROACH - FIXED: Full restoration
+        // ============================================================
+        // PDF UPLOAD & PARSING
+        // ============================================================
         function handleDragOver(e) {
             e.preventDefault();
             e.stopPropagation();
@@ -864,45 +1081,35 @@
                 const extractedData = parseOfficerBiography(fullText);
                 displayExtractionResults(extractedData, resultsDiv, statusDiv, file.name);
 
-                // Store current upload for "Use This Data" button
                 window.lastExtractedData = extractedData;
+                debugLog(`✓ PDF processed: ${extractedData.assignments.length} assignments found`, 'success');
 
             } catch (error) {
                 statusDiv.innerHTML = `<div class="error-message">❌ Error processing PDF: ${error.message}</div>`;
+                debugLog(`✗ PDF error: ${error.message}`, 'error');
             }
         }
 
-        // IMPROVED PDF PARSING - SECTION-AWARE & CONTEXT-SENSITIVE
-        // Handles promotion history sections, multi-line text, and varied PDF formats
-        
         function normalizeWhitespace(text) {
-            // Collapse multiple spaces and line breaks, but preserve word boundaries
             return text.replace(/\s+/g, ' ').trim();
         }
 
         function extractBiographyMetadata(bioText) {
-            // Extract rank, name, AFSC from biography section only
             const result = { rank: '', name: '', afsc: '' };
-            
-            // Get first few lines (header contains rank and name)
             const headerLines = bioText.split('\n').slice(0, 3).join(' ');
             
-            // Extract rank - look for rank keyword at start of header
             const rankPattern = /^(MAJOR GENERAL|LIEUTENANT GENERAL|BRIGADIER GENERAL|COLONEL|LIEUTENANT COLONEL|CAPTAIN|FIRST LIEUTENANT|SECOND LIEUTENANT)/i;
             const rankMatch = headerLines.match(rankPattern);
             if (rankMatch) {
                 result.rank = rankMatch[1].toUpperCase();
             }
             
-            // Extract name - get text between rank and first period/comma/"is"
             if (result.rank) {
                 const namePattern = new RegExp(`${result.rank}\\s+([A-Z][A-Za-z\\s\\.,'\\-]+?)(?:\\.|,|\\sis\\s)`, 'i');
                 const nameMatch = headerLines.match(namePattern);
                 if (nameMatch) {
                     let name = nameMatch[1].trim();
-                    // Remove rank abbreviations from name (Lt. Gen., Maj. Gen., etc.)
                     name = name.replace(/\b(?:Lt\.|Maj\.|Gen\.|BGen\.|Brig\.|Col\.|LtCol\.)\s+/gi, '');
-                    // Take first 3 parts of name to avoid duplicates
                     const parts = name.split(/\s+/);
                     if (parts.length > 0) {
                         result.name = parts.slice(0, 3).join(' ').trim();
@@ -910,7 +1117,6 @@
                 }
             }
             
-            // Extract AFSC - look for pattern like "13S000" or "11/12M MWS"
             const afscPattern = /AFSC[:\s]+([0-9A-Z\/\s]+)/i;
             const afscMatch = bioText.match(afscPattern);
             if (afscMatch) {
@@ -921,10 +1127,6 @@
         }
 
         function extractEducationInfo(eduText) {
-            // Extract year group from education section
-            // Look for first 4-digit year that looks like a commission/degree year
-            
-            // Pattern 1: "1993 Bachelor of Science" or "1998 graduate of"
             const degreePattern = /(\d{4})\s+(?:Bachelor|Master|Doctorate|Distinguished Graduate|Top Graduate|graduate)/i;
             const degreeMatch = eduText.match(degreePattern);
             if (degreeMatch) {
@@ -934,7 +1136,6 @@
                 }
             }
             
-            // Pattern 2: Just first 4-digit year in section
             const yearPattern = /(\d{4})/;
             const yearMatch = eduText.match(yearPattern);
             if (yearMatch) {
@@ -949,20 +1150,12 @@
 
         function parseAssignments(assignmentText) {
             const assignments = [];
-            
-            // Normalize whitespace first - critical for handling multi-line PDF text
             const normalizedText = normalizeWhitespace(assignmentText);
-            
-            // Split by numbered entries: 1. 2. 3. etc.
-            // Handles spacing variations and multi-line text
             const assignmentPattern = /^\s*(\d+)\.\s+(.+?)(?=^\s*\d+\.|$)/gms;
             let match;
             
             while ((match = assignmentPattern.exec(normalizedText)) !== null) {
                 const assignmentLine = match[2].trim();
-                
-                // Parse assignment: Date–Date, Title, Location, (Notes)
-                // Support both en-dash (–) and hyphen (-) and special unicode dashes
                 const datePattern = /^([A-Za-z]+\s+\d{4})[\s\–\-−–]+([A-Za-z]+\s+\d{4}|Present)(?:[,\s])/i;
                 const dateMatch = assignmentLine.match(datePattern);
                 
@@ -975,11 +1168,7 @@
                     
                     if (!startDate) continue;
                     
-                    // Everything after the date range
                     const remainingText = assignmentLine.substring(dateMatch[0].length).trim();
-                    
-                    // Parse remaining as: Title, Location, (Notes)
-                    // Split by comma to separate fields
                     const parts = remainingText.split(/,\s*/).map(p => p.trim());
                     
                     let title = '';
@@ -990,11 +1179,9 @@
                         title = parts[0];
                     }
                     if (parts.length >= 2) {
-                        // Location is everything from second part onward, minus any notes
                         location = parts.slice(1).join(', ');
                     }
                     
-                    // Extract parenthetical notes if present
                     const parentPattern = /\(([^)]+)\)/;
                     const parentMatch = remainingText.match(parentPattern);
                     if (parentMatch) {
@@ -1027,7 +1214,6 @@
                 parseQuality: 'unknown'
             };
 
-            // STEP 1: Find and extract major sections using boundaries
             const bioMatch = text.match(/BIOGRAPHY\s*\n+(.+?)(?=EDUCATION|ASSIGNMENTS|OTHER|$)/is);
             const bioText = bioMatch ? bioMatch[1] : '';
             
@@ -1037,7 +1223,6 @@
             const assignMatch = text.match(/ASSIGNMENTS\s*\n+(.+?)(?=SUMMARY OF|MAJOR AWARDS|EDUCATION|OTHER|MILITARY|$)/is);
             const assignText = assignMatch ? assignMatch[1] : '';
 
-            // STEP 2: Extract metadata from biography section only (not entire document)
             if (bioText) {
                 const bioMeta = extractBiographyMetadata(bioText);
                 result.rank = bioMeta.rank;
@@ -1045,16 +1230,13 @@
                 result.afsc = bioMeta.afsc;
             }
 
-            // STEP 3: Extract year group from education section only
             if (eduText) {
                 result.yearGroup = extractEducationInfo(eduText);
             }
 
-            // STEP 4: Parse assignments with improved multi-line, comma-separated parser
             if (assignText) {
                 result.assignments = parseAssignments(assignText);
                 
-                // Quality assessment based on extraction success
                 if (result.assignments.length > 20) {
                     result.parseQuality = 'excellent';
                 } else if (result.assignments.length > 10) {
@@ -1070,7 +1252,6 @@
 
             return result;
         }
-</parameter>
 
         function convertDateToYYYYMM(dateStr) {
             const months = {
@@ -1164,14 +1345,20 @@
                 displayAssignmentsList();
                 generateVisualization();
 
+                debugLog(`✓ Extracted data loaded: ${data.assignments.length} assignments`, 'success');
                 alert('Data loaded! Review and save to database when ready.');
             }
         }
 
-        // Mentor Matching Algorithm - FIXED: Full restoration
+        // ============================================================
+        // MENTOR MATCHING
+        // ============================================================
         function findMentors() {
+            debugLog('findMentors() called', 'info');
+
             const aspiration = document.getElementById('aspirationSearch').value.toLowerCase();
             if (!aspiration) {
+                debugLog('✗ No aspiration entered', 'error');
                 alert('Please enter a career aspiration to search');
                 return;
             }
@@ -1182,7 +1369,6 @@
                 let matchScore = 0;
                 let matchReasons = [];
 
-                // Score based on assignment titles containing aspiration keywords
                 potentialMentor.assignments.forEach(assignment => {
                     const titleLower = assignment.title.toLowerCase();
                     const locationLower = assignment.location.toLowerCase();
@@ -1197,7 +1383,6 @@
                     }
                 });
 
-                // Bonus for higher rank
                 const rankScore = { 'MAJOR GENERAL': 5, 'BRIGADIER GENERAL': 4, 'COLONEL': 3, 'LIEUTENANT COLONEL': 2 };
                 const mentorRank = potentialMentor.rank || '';
                 Object.keys(rankScore).forEach(rank => {
@@ -1213,18 +1398,18 @@
                 }
             });
 
-            // Sort by score descending
             matchResults.sort((a, b) => b.score - a.score);
 
-            // Display results
             const resultsDiv = document.getElementById('matchingResults');
             resultsDiv.innerHTML = '';
 
             if (matchResults.length === 0) {
+                debugLog(`✗ No mentors found for "${aspiration}"`, 'error');
                 resultsDiv.innerHTML = `<div class="error-message">No mentors found matching "${aspiration}". Try adding more charts to the database.</div>`;
                 return;
             }
 
+            debugLog(`✓ Found ${matchResults.length} mentors matching "${aspiration}"`, 'success');
             resultsDiv.innerHTML = `<h3>Found ${matchResults.length} Potential Mentor${matchResults.length !== 1 ? 's' : ''}</h3>`;
 
             matchResults.slice(0, 5).forEach(result => {
@@ -1248,7 +1433,9 @@
             });
         }
 
-        // Initialize with sample data
+        // ============================================================
+        // INITIALIZATION
+        // ============================================================
         function initializeSampleData() {
             const sampleCharts = [
                 {
@@ -1270,10 +1457,8 @@
 
             database = sampleCharts;
             localStorage.setItem('ribbonChartDB', JSON.stringify(database));
+            debugLog('✓ Sample data initialized', 'success');
         }
-
-        // Initialize on load
-        initializeSampleData();
     </script>
 </body>
 </html>
